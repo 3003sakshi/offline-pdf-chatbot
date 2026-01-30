@@ -39,7 +39,7 @@ An **offline AI-powered PDF chatbot** that allows users to ask questions directl
 
 ## 📌 Project Status
 
-✅ Core functionality implemented and working
+✅ Core functionality implemented and working  
 ⚠️ Answer accuracy may vary for complex or multi-context questions
 
 This project focuses on **offline architecture and secure deployment** rather than perfect answer accuracy.
@@ -59,7 +59,7 @@ This project focuses on **offline architecture and secure deployment** rather th
 
 * Improved text chunking strategy
 * Context re-ranking for better retrieval accuracy
-* Integration of a local generative language model
+* Integration of a local generative language model (planned)
 * Evaluation metrics for answer quality
 
 ---
@@ -93,9 +93,9 @@ streamlit run offline_pdf_chatbot.py
 ```
 offline-pdf-chatbot/
 │
-├── offline_pdf_chatbot.py
+├──README.md
+├──offline_pdf_chatbot.py
 ├── requirements.txt
-├── README.md
 └── data/ (optional sample PDFs)
 ```
 
