@@ -1,114 +1,143 @@
 # 📄 Offline PDF Chatbot
 
-An **offline AI-powered PDF chatbot** that allows users to ask questions directly from PDF documents **without using the internet or external APIs**. The system is designed for **privacy-sensitive and restricted environments**, where data sovereignty is critical.
+A fully offline, privacy-preserving RAG (Retrieval-Augmented Generation) chatbot that lets you
+upload a PDF and ask questions about it — no internet connection, cloud API, or external service
+required at query time.
+
+Built with **Streamlit**, **FAISS** (vector search), **HuggingFace sentence-transformers**
+(local embeddings), and **Ollama** running **phi3** (local LLM inference).
 
 ---
 
-## 🚀 Features
+## ✨ Features
 
-* Fully **offline** operation (no cloud APIs)
-* Upload and process **text-based PDFs**
-* Semantic search using **vector embeddings**
-* Fast similarity search with **FAISS**
-* Simple and interactive **Streamlit chat UI**
-
----
-
-## 🧠 How It Works (Architecture Overview)
-
-1. User uploads a PDF file
-2. Text is extracted from the PDF using `pypdf`
-3. Extracted text is split into overlapping chunks
-4. Each chunk is converted into vector embeddings using a local embedding model
-5. FAISS stores and searches vectors based on semantic similarity
-6. The most relevant text chunks are selected
-7. A heuristic-based method extracts the best matching sentence as the answer
+- Upload any text-based PDF and chat with it in natural language
+- Runs 100% locally/offline — no data ever leaves your machine
+- Source attribution: shows which page(s) an answer was drawn from
+- Handles encrypted/corrupted PDFs and oversized documents gracefully
+- Query-aware retrieval: automatically widens context for "list all / summarize each" style
+  questions, and falls back to feeding the *entire* document for short files, to avoid missing
+  or blending information across sections
+- Short conversational memory so follow-up questions work
+- Clear "model not ready" screen if Ollama/phi3 isn't running, instead of a silent crash
 
 ---
 
-## 🛠️ Tech Stack
+## 🧠 Tech Stack (LLM & RAG Framework)
 
-* **Python**
-* **Streamlit** – User interface
-* **PyPDF** – PDF text extraction
-* **Sentence-Transformers** – Text embeddings
-* **FAISS** – Vector similarity search
-* **LangChain Community** – Embedding and vector store wrappers
+For quick reference in a report or viva:
 
----
+| Component | What we used |
+|---|---|
+| **LLM (generation)** | `phi3:latest` (Microsoft Phi-3, ~3.8B parameters), run **locally via Ollama** |
+| **RAG framework / orchestration** | LangChain (`langchain-text-splitters` for chunking) |
+| **Embedding model** | `sentence-transformers/all-MiniLM-L6-v2` (HuggingFace, runs on CPU) |
+| **Vector store / retriever** | FAISS (Facebook AI Similarity Search), in-memory, per session |
+| **PDF parsing** | `pypdf` |
+| **UI** | Streamlit |
 
-## 📌 Project Status
-
-✅ Core functionality implemented and working  
-⚠️ Answer accuracy may vary for complex or multi-context questions
-
-This project focuses on **offline architecture and secure deployment** rather than perfect answer accuracy.
-
----
-
-## ⚠️ Known Limitations
-
-* Accuracy depends on chunk size and overlap strategy
-* No re-ranking or fine-tuning applied
-* Works best with **text-based PDFs** (not scanned images)
-* Long or highly technical documents may reduce precision
+This is a full **offline Retrieval-Augmented Generation (RAG)** pipeline — the same architectural
+pattern used by cloud RAG products, just with every component (LLM, embeddings, vector index)
+running locally instead of calling an external API. No document text or query ever leaves the
+machine.
 
 ---
 
-## 🔮 Future Improvements
+## 🧱 Architecture
 
-* Improved text chunking strategy
-* Context re-ranking for better retrieval accuracy
-* Integration of a local generative language model (planned)
-* Evaluation metrics for answer quality
+```
+PDF upload
+   │
+   ▼
+Text extraction (pypdf) ──► per-page text
+   │
+   ▼
+Chunking (LangChain RecursiveCharacterTextSplitter, 1000 chars, 150 overlap)
+   │
+   ▼
+Embeddings (sentence-transformers/all-MiniLM-L6-v2, CPU) ──► 384-dim vectors
+   │
+   ▼
+Vector index (FAISS, in-memory, per-session)
+   │
+   ▼
+User question ──► similarity search (or full-document context for short PDFs on
+                   list/summary questions) ──► phi3 via Ollama (streamed) ──► answer
+```
 
 ---
 
-## 🔐 Why Offline?
+## ⚙️ Setup
 
-* Ensures complete **data privacy**
-* Suitable for **defence, research, and restricted environments**
-* No dependency on third-party APIs or internet connectivity
+### 1. Prerequisites
+- Python 3.10+
+- [Ollama](https://ollama.com) installed locally
 
----
-
-## 📦 Installation
-
+### 2. Install dependencies
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt --break-system-packages
 ```
 
----
-
-## ▶️ Run the Application
-
+### 3. Pull the local model
 ```bash
-streamlit run offline_pdf_chatbot.py
+ollama pull phi3:latest
+```
+
+### 4. Start Ollama's server (in a separate terminal)
+```bash
+ollama serve
+```
+
+### 5. Run the app
+```bash
+streamlit run app.py
+```
+
+The app will refuse to proceed (with clear instructions) if Ollama or the `phi3` model isn't
+available, instead of failing silently.
+
+---
+
+## 🧪 How it was evaluated
+
+The app was tested against multiple real PDFs with a mix of question types to check for
+faithfulness (i.e. that answers are grounded in the document and not hallucinated):
+
+| Test type | Example question | Purpose |
+|---|---|---|
+| Basic fact retrieval | "When and where was X born?" | Sanity check |
+| Specific numeric detail | "How much rent did X pay?" | Tests chunk precision |
+| Enumeration | "List all 8 interview questions" / "list all his habits" | Tests whether the model invents/drops/merges items — a common small-LLM failure mode |
+| Chronological summary | "Summarize what happened in each of the 4 years" | Tests whether details get misattributed to the wrong section |
+| Negative test | "What college did he attend for his Master's?" (not in the document) | Confirms the model says *"The document does not provide this information"* instead of hallucinating |
+
+### Known limitation
+Because this project intentionally uses a small (~3.8B parameter), CPU-only, fully local model
+(`phi3`) rather than a large cloud model, it can occasionally misattribute a detail to the wrong
+labeled section (e.g. attaching a sentence from "Year 2" to "Year 1" in a summarization task),
+even though it correctly refuses to answer when information is genuinely absent. This is a
+known trade-off of prioritizing full offline privacy over model size, and is mitigated (not
+fully eliminated) by:
+- reordering retrieved chunks back into document order before prompting,
+- widening retrieval for list/summary-style questions,
+- falling back to full-document context for short PDFs, and
+- explicit prompt instructions not to blend adjacent sections.
+
+---
+
+## 📁 Project structure
+
+```
+.
+├── app.py              # Main Streamlit application
+├── requirements.txt    # Python dependencies
+└── README.md
 ```
 
 ---
 
-## 📂 Folder Structure
-
-```
-offline-pdf-chatbot/
-│
-├──README.md
-├──offline_pdf_chatbot.py
-├── requirements.txt
-└── data/ (optional sample PDFs)
-```
-
----
-
-## 👩‍💻 Author
-
-**Sakshi Shekhawat**
-B.E. Student | AI & Data Science
-Interested in AI, NLP, and privacy-focused systems
-
----
-
-## 📄 License
-
-This project is intended for educational and learning purposes.
+## 🚀 Possible future improvements
+- Support scanned/image-only PDFs via OCR
+- Persist vector index to disk so re-uploading the same file skips re-embedding
+- Multi-document chat (query across several PDFs at once)
+- Configurable model selection (swap `phi3` for another locally pulled Ollama model)
