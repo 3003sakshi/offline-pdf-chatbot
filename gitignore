@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Test / demo artifacts — don't commit sample data or chat logs
+*.pdf
+chat_transcript.txt
+
+# OS files
+.DS_Store
+Thumbs.db
